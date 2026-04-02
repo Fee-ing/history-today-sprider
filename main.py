@@ -9,6 +9,10 @@ from email.utils import formataddr
 import os
 from dotenv import load_dotenv
 from datetime import datetime
+try:
+    from zoneinfo import ZoneInfo  # Python 3.9+
+except ImportError:
+    from backports.zoneinfo import ZoneInfo  # Python < 3.9
 
 URL = "https://baike.baidu.com/cms/home/eventsOnHistory/"
 
@@ -20,8 +24,9 @@ EMAIL_RECEIVER = os.environ.get("EMAIL_RECEIVER")
 
 
 def crawl_data():
-    month = datetime.now().strftime('%m')
-    day = datetime.now().strftime('%d')
+    now = datetime.now(ZoneInfo("Asia/Shanghai"))
+    month = now.strftime('%m')
+    day = now.strftime('%d')
     api_url = f"{URL}{month}.json"
 
     print(api_url)
