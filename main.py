@@ -325,7 +325,6 @@ def save_history_json(data_list, filepath="history.json"):
     second = now.strftime('%S')
 
     json_data = {
-        "date": f"{year}年{month}月{day}日",
         "year": year,
         "month": month,
         "day": day,
