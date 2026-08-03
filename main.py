@@ -25,8 +25,8 @@ EMAIL_SENDER = os.environ.get("EMAIL_SENDER")
 EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
 EMAIL_RECEIVER = os.environ.get("EMAIL_RECEIVER")
 
-PAT = os.environ.get("PAT")
-REPO = os.environ.get("REPO")  # 格式: owner/repo
+GH_PAT = os.environ.get("GH_PAT")
+GH_PAT = os.environ.get("GH_PAT")  # 格式: owner/repo
 
 
 def crawl_data():
@@ -342,36 +342,36 @@ def save_history_json(data_list, filepath="history.json"):
 
 
 def push_to_github_pages(json_data, filepath="history.json"):
-    """将 history.json 推送到 GitHub 仓库的 gh-pages 分支"""
-    if not all([PAT, REPO]):
-        print("错误：环境变量 PAT, REPO 未设置完整。跳过推送。")
+    """将 history.json 推送到 GitHub 仓库的 master 分支"""
+    if not all([GH_PAT, GH_PAT]):
+        print("错误：环境变量 GH_PAT, GH_PAT 未设置完整。跳过推送。")
         return False
 
     headers = {
-        "Authorization": f"token {PAT}",
+        "Authorization": f"token {GH_PAT}",
         "Accept": "application/vnd.github.v3+json"
     }
 
-    # 检查 gh-pages 分支是否存在
-    branch_ref_url = f"https://api.github.com/repos/{REPO}/git/refs/heads/gh-pages"
+    # 检查 master 分支是否存在
+    branch_ref_url = f"https://api.github.com/repos/{GH_PAT}/git/refs/heads/master"
     branch_exists = False
     try:
         ref_response = requests.get(branch_ref_url, headers=headers)
         if ref_response.status_code == 200:
             branch_exists = True
-            print("gh-pages 分支已存在")
+            print("master 分支已存在")
         elif ref_response.status_code == 404:
-            print("gh-pages 分支不存在，将自动创建")
+            print("master 分支不存在，将自动创建")
         else:
             print(f"检查分支异常：{ref_response.status_code} {ref_response.text}")
     except Exception as e:
         print(f"检查分支异常：{e}")
 
-    # 如果分支不存在，从默认分支创建 gh-pages
+    # 如果分支不存在，从默认分支创建 master
     if not branch_exists:
         try:
             # 获取仓库信息（默认分支名）
-            repo_url = f"https://api.github.com/repos/{REPO}"
+            repo_url = f"https://api.github.com/repos/{GH_PAT}"
             repo_response = requests.get(repo_url, headers=headers)
             if repo_response.status_code != 200:
                 print(f"获取仓库信息失败：{repo_response.status_code} {repo_response.text}")
@@ -379,25 +379,25 @@ def push_to_github_pages(json_data, filepath="history.json"):
             default_branch = repo_response.json().get("default_branch", "main")
 
             # 获取默认分支最新 commit SHA
-            ref_default_url = f"https://api.github.com/repos/{REPO}/git/refs/heads/{default_branch}"
+            ref_default_url = f"https://api.github.com/repos/{GH_PAT}/git/refs/heads/{default_branch}"
             ref_default_response = requests.get(ref_default_url, headers=headers)
             if ref_default_response.status_code != 200:
                 print(f"获取默认分支失败：{ref_default_response.status_code}")
                 return False
             base_sha = ref_default_response.json()["object"]["sha"]
 
-            # 创建 gh-pages 分支
+            # 创建 master 分支
             create_branch_payload = {
-                "ref": "refs/heads/gh-pages",
+                "ref": "refs/heads/master",
                 "sha": base_sha
             }
             create_response = requests.post(
-                f"https://api.github.com/repos/{REPO}/git/refs",
+                f"https://api.github.com/repos/{GH_PAT}/git/refs",
                 headers=headers,
                 json=create_branch_payload
             )
             if create_response.status_code == 201:
-                print("gh-pages 分支创建成功")
+                print("master 分支创建成功")
             else:
                 print(f"创建分支失败：{create_response.status_code} {create_response.json()}")
                 return False
@@ -406,16 +406,16 @@ def push_to_github_pages(json_data, filepath="history.json"):
             return False
 
     FILE_PATH = f"JSONs/{filepath}"  # 确保写入子目录
-    api_url = f"https://api.github.com/repos/{REPO}/contents/{urllib.parse.quote(FILE_PATH, safe='/')}"
+    api_url = f"https://api.github.com/repos/{GH_PAT}/contents/{urllib.parse.quote(FILE_PATH, safe='/')}"
 
     content = json.dumps(json_data, ensure_ascii=False, indent=2)
     content_bytes = content.encode('utf-8')
     content_base64 = base64.b64encode(content_bytes).decode('utf-8')
 
-    # 检查 gh-pages 分支上是否已存在该文件
+    # 检查 master 分支上是否已存在该文件
     sha = None
     try:
-        response = requests.get(f"{api_url}?ref=gh-pages", headers=headers)
+        response = requests.get(f"{api_url}?ref=master", headers=headers)
         if response.status_code == 200:
             sha = response.json().get("sha")
             print(f"文件已存在，将更新（SHA: {sha[:7]}...）")
@@ -431,7 +431,7 @@ def push_to_github_pages(json_data, filepath="history.json"):
     payload = {
         "message": commit_message,
         "content": content_base64,
-        "branch": "gh-pages"
+        "branch": "master"
     }
     if sha:
         payload["sha"] = sha
@@ -439,7 +439,7 @@ def push_to_github_pages(json_data, filepath="history.json"):
     try:
         response = requests.put(api_url, headers=headers, json=payload)
         if response.status_code in (200, 201):
-            print(f"✓ history.json 推送成功 → https://github.com/{REPO}/blob/gh-pages/{filepath}")
+            print(f"✓ history.json 推送成功 → https://github.com/{GH_PAT}/blob/master/{filepath}")
             return True
         else:
             print(f"推送失败：{response.status_code} {response.json()}")
