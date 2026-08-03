@@ -7,6 +7,8 @@ from email.mime.multipart import MIMEMultipart
 from email.header import Header
 from email.utils import formataddr
 import os
+import json
+import base64
 from dotenv import load_dotenv
 from datetime import datetime
 try:
@@ -21,6 +23,9 @@ load_dotenv()
 EMAIL_SENDER = os.environ.get("EMAIL_SENDER")
 EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
 EMAIL_RECEIVER = os.environ.get("EMAIL_RECEIVER")
+
+GITHUB_PAT = os.environ.get("GITHUB_PAT")
+GITHUB_REPO = os.environ.get("GITHUB_REPO")  # 格式: owner/repo
 
 
 def crawl_data():
@@ -308,12 +313,91 @@ def send_email(data_list):
       server.quit()
 
 
+def save_history_json(data_list, filepath="history.json"):
+    """将爬取数据保存为本地 JSON 文件，返回格式化后的数据"""
+    now = datetime.now(ZoneInfo("Asia/Shanghai"))
+    month = now.strftime('%m')
+    day = now.strftime('%d')
+
+    json_data = {
+        "date": f"{month}月{day}日",
+        "month": month,
+        "day": day,
+        "events": data_list,
+    }
+
+    with open(filepath, 'w', encoding='utf-8') as f:
+        json.dump(json_data, f, ensure_ascii=False, indent=2)
+
+    print(f"JSON 文件已保存：{filepath}")
+    return json_data
+
+
+def push_to_github_pages(json_data, filepath="history.json"):
+    """将 history.json 推送到 GitHub 仓库的 gh-pages 分支"""
+    if not all([GITHUB_PAT, GITHUB_REPO]):
+        print("错误：环境变量 GITHUB_PAT, GITHUB_REPO 未设置完整。跳过推送。")
+        return False
+
+    api_url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{filepath}"
+    headers = {
+        "Authorization": f"token {GITHUB_PAT}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+
+    content = json.dumps(json_data, ensure_ascii=False, indent=2)
+    content_bytes = content.encode('utf-8')
+    content_base64 = base64.b64encode(content_bytes).decode('utf-8')
+
+    # 检查 gh-pages 分支上是否已存在该文件
+    sha = None
+    try:
+        response = requests.get(f"{api_url}?ref=gh-pages", headers=headers)
+        if response.status_code == 200:
+            sha = response.json().get("sha")
+            print(f"文件已存在，将更新（SHA: {sha[:7]}...）")
+        elif response.status_code == 404:
+            print("文件不存在，将创建新文件")
+        else:
+            print(f"检查文件状态异常：{response.status_code} {response.text}")
+    except Exception as e:
+        print(f"检查文件异常：{e}")
+
+    # 创建或更新文件
+    commit_message = f"Update history.json - {json_data.get('date', '')}"
+    payload = {
+        "message": commit_message,
+        "content": content_base64,
+        "branch": "gh-pages"
+    }
+    if sha:
+        payload["sha"] = sha
+
+    try:
+        response = requests.put(api_url, headers=headers, json=payload)
+        if response.status_code in (200, 201):
+            print(f"✓ history.json 推送成功 → https://github.com/{GITHUB_REPO}/blob/gh-pages/{filepath}")
+            return True
+        else:
+            print(f"推送失败：{response.status_code} {response.json()}")
+            return False
+    except Exception as e:
+        print(f"推送异常：{e}")
+        return False
+
+
 if __name__ == "__main__":
   print("开始爬取数据...")
   data = crawl_data()
 
   if data:
-    print("数据爬取成功，正在发送邮件...")
+    print("数据爬取成功，正在处理...")
+
+    # 1. 发送邮件
     send_email(data)
+
+    # 2. 保存 JSON 并推送到 GitHub Pages
+    json_data = save_history_json(data)
+    push_to_github_pages(json_data)
   else:
-    print("数据爬取失败，跳过邮件发送。")
+    print("数据爬取失败，跳过后续操作。")
