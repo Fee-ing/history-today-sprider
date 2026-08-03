@@ -317,7 +317,7 @@ def send_email(data_list):
 def save_history_json(data_list, filepath="history.json"):
     """将爬取数据保存为本地 JSON 文件，返回格式化后的数据"""
     now = datetime.now(ZoneInfo("Asia/Shanghai"))
-    timestamp = int(now.timestamp())
+    timestamp = int(now.timestamp() * 1000)
 
     json_data = {
         "timestamp": timestamp,
