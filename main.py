@@ -24,8 +24,8 @@ EMAIL_SENDER = os.environ.get("EMAIL_SENDER")
 EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
 EMAIL_RECEIVER = os.environ.get("EMAIL_RECEIVER")
 
-GITHUB_PAT = os.environ.get("GITHUB_PAT")
-GITHUB_REPO = os.environ.get("GITHUB_REPO")  # 格式: owner/repo
+PAT = os.environ.get("PAT")
+REPO = os.environ.get("REPO")  # 格式: owner/repo
 
 
 def crawl_data():
@@ -335,13 +335,13 @@ def save_history_json(data_list, filepath="history.json"):
 
 def push_to_github_pages(json_data, filepath="history.json"):
     """将 history.json 推送到 GitHub 仓库的 gh-pages 分支"""
-    if not all([GITHUB_PAT, GITHUB_REPO]):
-        print("错误：环境变量 GITHUB_PAT, GITHUB_REPO 未设置完整。跳过推送。")
+    if not all([PAT, REPO]):
+        print("错误：环境变量 PAT, REPO 未设置完整。跳过推送。")
         return False
 
-    api_url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{filepath}"
+    api_url = f"https://api.github.com/repos/{REPO}/contents/{filepath}"
     headers = {
-        "Authorization": f"token {GITHUB_PAT}",
+        "Authorization": f"token {PAT}",
         "Accept": "application/vnd.github.v3+json"
     }
 
@@ -376,7 +376,7 @@ def push_to_github_pages(json_data, filepath="history.json"):
     try:
         response = requests.put(api_url, headers=headers, json=payload)
         if response.status_code in (200, 201):
-            print(f"✓ history.json 推送成功 → https://github.com/{GITHUB_REPO}/blob/gh-pages/{filepath}")
+            print(f"✓ history.json 推送成功 → https://github.com/{REPO}/blob/gh-pages/{filepath}")
             return True
         else:
             print(f"推送失败：{response.status_code} {response.json()}")
