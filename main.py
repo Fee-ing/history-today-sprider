@@ -458,7 +458,7 @@ if __name__ == "__main__":
     print("数据爬取成功，正在处理...")
 
     # 1. 发送邮件
-    # send_email(data)
+    send_email(data)
 
     # 2. 保存 JSON 并推送到 GitHub Pages
     json_data = save_history_json(data)
