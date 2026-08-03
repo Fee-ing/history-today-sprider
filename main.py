@@ -1,6 +1,7 @@
 # main.py
 
 import requests
+import urllib.parse
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -316,13 +317,20 @@ def send_email(data_list):
 def save_history_json(data_list, filepath="history.json"):
     """将爬取数据保存为本地 JSON 文件，返回格式化后的数据"""
     now = datetime.now(ZoneInfo("Asia/Shanghai"))
+    year = now.strftime('%Y')
     month = now.strftime('%m')
     day = now.strftime('%d')
+    hour = now.strftime('%H')
+    minute = now.strftime('%M')
+    second = now.strftime('%S')
 
     json_data = {
-        "date": f"{month}月{day}日",
+        "date": f"{year}年{month}月{day}日",
         "month": month,
         "day": day,
+        "hour": hour,
+        "minute": minute,
+        "second": second,
         "events": data_list,
     }
 
@@ -339,11 +347,67 @@ def push_to_github_pages(json_data, filepath="history.json"):
         print("错误：环境变量 PAT, REPO 未设置完整。跳过推送。")
         return False
 
-    api_url = f"https://api.github.com/repos/{REPO}/contents/{filepath}"
     headers = {
         "Authorization": f"token {PAT}",
         "Accept": "application/vnd.github.v3+json"
     }
+
+    # 检查 gh-pages 分支是否存在
+    branch_ref_url = f"https://api.github.com/repos/{REPO}/git/refs/heads/gh-pages"
+    branch_exists = False
+    try:
+        ref_response = requests.get(branch_ref_url, headers=headers)
+        if ref_response.status_code == 200:
+            branch_exists = True
+            print("gh-pages 分支已存在")
+        elif ref_response.status_code == 404:
+            print("gh-pages 分支不存在，将自动创建")
+        else:
+            print(f"检查分支异常：{ref_response.status_code} {ref_response.text}")
+    except Exception as e:
+        print(f"检查分支异常：{e}")
+
+    # 如果分支不存在，从默认分支创建 gh-pages
+    if not branch_exists:
+        try:
+            # 获取仓库信息（默认分支名）
+            repo_url = f"https://api.github.com/repos/{REPO}"
+            repo_response = requests.get(repo_url, headers=headers)
+            if repo_response.status_code != 200:
+                print(f"获取仓库信息失败：{repo_response.status_code} {repo_response.text}")
+                return False
+            default_branch = repo_response.json().get("default_branch", "main")
+
+            # 获取默认分支最新 commit SHA
+            ref_default_url = f"https://api.github.com/repos/{REPO}/git/refs/heads/{default_branch}"
+            ref_default_response = requests.get(ref_default_url, headers=headers)
+            if ref_default_response.status_code != 200:
+                print(f"获取默认分支失败：{ref_default_response.status_code}")
+                return False
+            base_sha = ref_default_response.json()["object"]["sha"]
+
+            # 创建 gh-pages 分支
+            create_branch_payload = {
+                "ref": "refs/heads/gh-pages",
+                "sha": base_sha
+            }
+            create_response = requests.post(
+                f"https://api.github.com/repos/{REPO}/git/refs",
+                headers=headers,
+                json=create_branch_payload
+            )
+            if create_response.status_code == 201:
+                print("gh-pages 分支创建成功")
+            else:
+                print(f"创建分支失败：{create_response.status_code} {create_response.json()}")
+                return False
+        except Exception as e:
+            print(f"创建分支异常：{e}")
+            return False
+
+    FILE_PATH = f"JSONs/{filepath}"  # 确保写入子目录
+    api_url = f"https://api.github.com/repos/{REPO}/contents/{urllib.parse.quote(FILE_PATH, safe='/')}"
+    # api_url = f"https://api.github.com/repos/{REPO}/contents/{filepath}"
 
     content = json.dumps(json_data, ensure_ascii=False, indent=2)
     content_bytes = content.encode('utf-8')
@@ -394,7 +458,7 @@ if __name__ == "__main__":
     print("数据爬取成功，正在处理...")
 
     # 1. 发送邮件
-    send_email(data)
+    # send_email(data)
 
     # 2. 保存 JSON 并推送到 GitHub Pages
     json_data = save_history_json(data)
