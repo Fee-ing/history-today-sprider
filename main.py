@@ -408,7 +408,6 @@ def push_to_github_pages(json_data, filepath="history.json"):
 
     FILE_PATH = f"JSONs/{filepath}"  # 确保写入子目录
     api_url = f"https://api.github.com/repos/{REPO}/contents/{urllib.parse.quote(FILE_PATH, safe='/')}"
-    # api_url = f"https://api.github.com/repos/{REPO}/contents/{filepath}"
 
     content = json.dumps(json_data, ensure_ascii=False, indent=2)
     content_bytes = content.encode('utf-8')
